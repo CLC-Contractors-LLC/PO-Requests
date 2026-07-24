@@ -30,6 +30,12 @@ exports.handler = async (event) => {
     if (!recordId || !actorName || !jobId || !costItemId || !amount || !vendor) {
       return { statusCode: 400, body: JSON.stringify({ error: "Missing required fields" }) };
     }
+    if (!vendorId) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "Please select a vendor from the search list, not just typed text" }),
+      };
+    }
 
     // Only the original requester can edit their own request, and only while
     // it hasn't already been approved - editing after approval would let
