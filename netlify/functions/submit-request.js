@@ -32,6 +32,12 @@ exports.handler = async (event) => {
         body: JSON.stringify({ error: "Missing required fields" }),
       };
     }
+    if (!vendorId) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "Please select a vendor from the search list, not just typed text" }),
+      };
+    }
 
     // Run the live budget check server-side (never trust the client's math)
     const data = await jobtreadQuery({
