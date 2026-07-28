@@ -2,12 +2,30 @@ const { airtableList } = require("./_airtable");
 
 exports.handler = async () => {
   try {
-    const data = await airtableList(
-      "PO Requests",
-      "?sort%5B0%5D%5Bfield%5D=Created&sort%5B0%5D%5Bdirection%5D=asc&pageSize=100"
-    );
+    let allRecords = [];
+    let offset = undefined;
+    let safety = 0;
 
-    const records = (data.records || []).map((r) => ({
+    // Airtable caps each page at 100 records - page through with `offset`
+    // until it stops returning one, so nothing past the first 100 gets
+    // silently dropped as the table grows.
+    while (safety < 20) {
+      safety++;
+      const params = new URLSearchParams({
+        "sort[0][field]": "Created",
+        "sort[0][direction]": "asc",
+        pageSize: "100",
+      });
+      if (offset) params.set("offset", offset);
+
+      const data = await airtableList("PO Requests", `?${params.toString()}`);
+      allRecords = allRecords.concat(data.records || []);
+
+      if (!data.offset) break;
+      offset = data.offset;
+    }
+
+    const records = allRecords.map((r) => ({
       id: r.id,
       ...r.fields,
     }));
@@ -21,5 +39,3 @@ exports.handler = async () => {
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
 };
-
-
