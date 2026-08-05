@@ -1,8 +1,47 @@
 const { jobtreadQuery } = require("./_jobtread");
-const { airtableUpdate, airtableList } = require("./_airtable");
+const { airtableUpdate, airtableList, airtableCreate } = require("./_airtable");
 const { notifyByName } = require("./_notify");
 
 const APPROVERS = ["danielle", "chris", "dedi"];
+
+// Hard rules for pushing an approved PO into CLC Dispatch:
+//   1. Only once it actually has a real PO Number (Status is becoming "PO Assigned")
+//   2. Only if Fulfillment is "Pickup" - deliveries never touch Dispatch
+//   3. Never twice for the same PO Request (Dispatch Record ID acts as the guard)
+// Both apps share one Airtable base, so this is a same-base write - no
+// cross-app auth or API calls required.
+async function pushApprovedPickupToDispatch(record, poNumber) {
+  const f = record.fields;
+  if (f.Fulfillment !== "Pickup") return null;
+  if (f["Dispatch Record ID"]) return null; // already pushed once - don't duplicate
+
+  const dispatchFields = {
+    "Request Type": "Material / Supply",
+    Status: "Requested",
+    Description: f["Budget Line Item"] || "Material pickup",
+    "Pickup Location": f.Vendor || "",
+    "Dropoff Location": f["Job Name"] || "",
+    "PO Number": poNumber ? String(poNumber) : "",
+    "Date Needed": f["Needed By"] || "",
+    "Submitted By": f["Requested By"] || "",
+    Notes: f.Notes || "",
+    "Source PO ID": record.id,
+    Priority: "P3 - Planned",
+  };
+  if (f.Attachment && f.Attachment.length) {
+    dispatchFields.Attachments = f.Attachment.map((a) => ({ url: a.url }));
+  }
+
+  try {
+    const created = await airtableCreate("Requests", dispatchFields);
+    return created.id || null;
+  } catch (err) {
+    // Don't fail the PO approval itself over a Dispatch-side hiccup - just
+    // leave "Dispatch Record ID" unset so it's visibly not-yet-pushed.
+    console.error("Dispatch push failed:", err.message);
+    return null;
+  }
+}
 
 // Attempts to create a real vendor order (PO) in JobTread and immediately
 // mark it approved. Returns the auto-assigned PO number on success, or null
@@ -133,6 +172,9 @@ exports.handler = async (event) => {
         fields["Approved At"] = new Date().toISOString();
         notifyTitle = "PO approved";
         notifyBody = `Your PO is approved - PO #${poResult.number} was created automatically.`;
+
+        const dispatchId = await pushApprovedPickupToDispatch(record, poResult.number);
+        if (dispatchId) fields["Dispatch Record ID"] = dispatchId;
       } else {
         // Auto-creation didn't go through for some reason - fall back to the
         // old manual flow so the request isn't stuck. Note the failure
@@ -162,6 +204,9 @@ exports.handler = async (event) => {
       fields.Status = "PO Assigned";
       notifyTitle = "PO number assigned";
       notifyBody = `PO #${poNumber} is set - good to go.`;
+
+      const dispatchId = await pushApprovedPickupToDispatch(record, poNumber);
+      if (dispatchId) fields["Dispatch Record ID"] = dispatchId;
     } else {
       return { statusCode: 400, body: JSON.stringify({ error: "Unknown action" }) };
     }
