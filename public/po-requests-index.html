@@ -235,6 +235,7 @@
     <div class="field">
       <label>Needed onsite by</label>
       <input id="neededByInput" type="date" />
+      <div style="font-size:11px;color:#B9BEC4;margin-top:4px">Enter the day BEFORE you actually need it — pickups need lead time to get scheduled and run.</div>
     </div>
     <div class="field">
       <label>Photo or PDF of what you're ordering</label>
@@ -264,6 +265,9 @@
   <div class="view" id="view-complete">
     <div id="completeList"></div>
   </div>
+  <div class="view" id="view-delivered">
+    <div id="deliveredList"></div>
+  </div>
 </main>
 
 <nav class="tabs">
@@ -271,6 +275,7 @@
   <button data-view="pending" onclick="switchTab('pending')">Needs Approval<span class="count" id="countPending" style="display:none"></span></button>
   <button data-view="approved" onclick="switchTab('approved')">Approved<span class="count" id="countApproved" style="display:none"></span></button>
   <button data-view="complete" onclick="switchTab('complete')">Complete</button>
+  <button data-view="delivered" onclick="switchTab('delivered')">Delivered</button>
 </nav>
 
 <script>
@@ -586,6 +591,8 @@ function ticketHTML(r, kind){
   if(r.Status==='Needs Info') statusBadge = '<span class="badge red">Needs info</span>';
   if(r.Status==='Approved') statusBadge = '<span class="badge green">Approved</span>';
   if(r.Status==='PO Assigned') statusBadge = `<span class="badge blue">PO #${r['PO Number']||''}</span>`;
+  if(r.Status==='En Route') statusBadge = `<span class="badge blue">En route - PO #${r['PO Number']||''}</span>`;
+  if(r.Status==='Delivered') statusBadge = '<span class="badge green">Delivered</span>';
   if(r.Status==='Rejected') statusBadge = '<span class="badge red">Rejected</span>';
 
   let attachmentLink = r.Attachment && r.Attachment[0]
@@ -687,7 +694,10 @@ function renderLists(){
   const pending = scoped.filter(r=>r.Status==='Pending Review' || r.Status==='Needs Info');
   const approved = scoped.filter(r=>r.Status==='Approved');
   const complete = scoped
-    .filter(r=>r.Status==='PO Assigned' || r.Status==='Rejected')
+    .filter(r=>r.Status==='PO Assigned' || r.Status==='En Route' || r.Status==='Rejected')
+    .sort((a,b)=> new Date(b['Status Updated At']||0) - new Date(a['Status Updated At']||0));
+  const delivered = scoped
+    .filter(r=>r.Status==='Delivered')
     .sort((a,b)=> new Date(b['Status Updated At']||0) - new Date(a['Status Updated At']||0));
 
   document.getElementById('pendingList').innerHTML = pending.length
@@ -701,6 +711,10 @@ function renderLists(){
   document.getElementById('completeList').innerHTML = complete.length
     ? complete.map(r=>ticketHTML(r,'complete')).join('')
     : '<div class="empty">No completed requests yet.</div>';
+
+  document.getElementById('deliveredList').innerHTML = delivered.length
+    ? delivered.map(r=>ticketHTML(r,'delivered')).join('')
+    : '<div class="empty">Nothing marked delivered yet.</div>';
 
   const countPending = document.getElementById('countPending');
   const countApproved = document.getElementById('countApproved');
