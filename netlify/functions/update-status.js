@@ -34,6 +34,13 @@ async function pushApprovedPickupToDispatch(record, poNumber) {
 
   try {
     const created = await airtableCreate("Requests", dispatchFields);
+    if (created.id) {
+      notifyByName(
+        ["Austin"],
+        "New Material / Supply",
+        `${dispatchFields.Description} — ${dispatchFields["Dropoff Location"] || "job site"} (from PO #${dispatchFields["PO Number"] || "?"})`
+      ).catch((err) => console.error("notifyByName failed:", err.message));
+    }
     return created.id || null;
   } catch (err) {
     // Don't fail the PO approval itself over a Dispatch-side hiccup - just
