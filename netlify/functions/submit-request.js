@@ -66,6 +66,13 @@ exports.handler = async (event) => {
     const remaining = budget - committed - timeCost;
     const inBudget = parseFloat(amount) <= remaining;
 
+    if (!inBudget && !(notes && notes.trim())) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "This request is over budget - a reason is required in Notes" }),
+      };
+    }
+
     const record = await airtableCreate("PO Requests", {
       "Job Name": jobName,
       "Job ID": jobId,
