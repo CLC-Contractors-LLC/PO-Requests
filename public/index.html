@@ -203,6 +203,11 @@
     <label><input type="radio" name="reqFilter" value="mine" onchange="setFilter('mine')" /><span>My requests</span></label>
   </div>
 
+  <div class="radio-row" id="sortBar" style="display:none;margin-bottom:14px">
+    <label><input type="radio" name="reqSort" value="date" checked onchange="setSort('date')" /><span>Sort: Date</span></label>
+    <label><input type="radio" name="reqSort" value="job" onchange="setSort('job')" /><span>Sort: Job</span></label>
+  </div>
+
   <!-- NEW REQUEST -->
   <div class="view" id="view-new">
     <div class="field">
@@ -242,7 +247,7 @@
       <input id="fileInput" type="file" accept="image/*,application/pdf" />
     </div>
     <div class="field">
-      <label>Notes (optional)</label>
+      <label id="notesLabel">Notes (optional)</label>
       <textarea id="notesInput" placeholder="Anything Danielle should know"></textarea>
     </div>
     <button class="btn primary" style="width:100%;padding:13px;font-size:15px" onclick="submitRequest()" id="submitBtn">Submit request</button>
@@ -313,12 +318,19 @@ function switchTab(view){
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
   document.querySelector('nav.tabs button[data-view="'+view+'"]').classList.add('active');
   document.getElementById('filterBar').style.display = (view==='new') ? 'none' : 'flex';
+  document.getElementById('sortBar').style.display = (view==='new') ? 'none' : 'flex';
   if(view!=='new') refreshRequests();
 }
 
 let requestFilter = 'all';
 function setFilter(val){
   requestFilter = val;
+  renderLists();
+}
+
+let requestSort = 'date';
+function setSort(val){
+  requestSort = val;
   renderLists();
 }
 
@@ -438,7 +450,8 @@ async function runBudgetCheck(){
   const costItemId = document.getElementById('lineSelect').value;
   const amount = document.getElementById('amountInput').value;
   const box = document.getElementById('budgetCheck');
-  if(!costItemId || !amount){ box.className='budget-check'; lastBudgetCheck=null; return; }
+  const notesLabel = document.getElementById('notesLabel');
+  if(!costItemId || !amount){ box.className='budget-check'; lastBudgetCheck=null; notesLabel.textContent='Notes (optional)'; return; }
   box.className='budget-check loading';
   box.textContent = 'Checking budget…';
   try{
@@ -448,9 +461,11 @@ async function runBudgetCheck(){
     if(data.inBudget){
       box.className='budget-check ok';
       box.textContent = 'IN BUDGET';
+      notesLabel.textContent = 'Notes (optional)';
     }else{
       box.className='budget-check bad';
       box.textContent = 'OVER BUDGET';
+      notesLabel.textContent = 'Reason for going over budget (required)';
     }
   }catch(e){
     box.className='budget-check';
@@ -489,6 +504,10 @@ async function submitRequest(){
   }
   if(!selectedVendorId){
     toast('Pick the vendor from the dropdown list, not just typed text');
+    return;
+  }
+  if(lastBudgetCheck && lastBudgetCheck.inBudget===false && !notes){
+    toast('This is over budget - add a reason in the Notes field before submitting');
     return;
   }
 
@@ -531,6 +550,7 @@ async function submitRequest(){
     selectedVendorId = null;
     document.getElementById('neededByInput').value='';
     document.getElementById('notesInput').value='';
+    document.getElementById('notesLabel').textContent = 'Notes (optional)';
     document.getElementById('fileInput').value='';
     document.getElementById('budgetCheck').className='budget-check';
     cancelEdit();
@@ -691,14 +711,20 @@ function renderLists(){
     ? allRequests.filter(r => (r['Requested By']||'').toLowerCase().trim() === myName().toLowerCase().trim())
     : allRequests;
 
-  const pending = scoped.filter(r=>r.Status==='Pending Review' || r.Status==='Needs Info');
+  let pending = scoped.filter(r=>r.Status==='Pending Review' || r.Status==='Needs Info');
   const approved = scoped.filter(r=>r.Status==='Approved');
-  const complete = scoped
+  let complete = scoped
     .filter(r=>r.Status==='PO Assigned' || r.Status==='En Route' || r.Status==='Rejected')
     .sort((a,b)=> new Date(b['Status Updated At']||0) - new Date(a['Status Updated At']||0));
   const delivered = scoped
     .filter(r=>r.Status==='Delivered')
     .sort((a,b)=> new Date(b['Status Updated At']||0) - new Date(a['Status Updated At']||0));
+
+  if(requestSort==='job'){
+    const byJob = (a,b) => (a['Job Name']||'').localeCompare(b['Job Name']||'');
+    pending = [...pending].sort(byJob);
+    complete = [...complete].sort(byJob);
+  }
 
   document.getElementById('pendingList').innerHTML = pending.length
     ? pending.map(r=>ticketHTML(r,'pending')).join('')
