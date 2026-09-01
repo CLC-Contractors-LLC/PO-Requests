@@ -721,9 +721,13 @@ function renderLists(){
     .sort((a,b)=> new Date(b['Status Updated At']||0) - new Date(a['Status Updated At']||0));
 
   if(requestSort==='job'){
-    const byJob = (a,b) => (a['Job Name']||'').localeCompare(b['Job Name']||'');
-    pending = [...pending].sort(byJob);
-    complete = [...complete].sort(byJob);
+    const byJobThenDate = (dateField) => (a,b) => {
+      const jobCompare = (a['Job Name']||'').localeCompare(b['Job Name']||'');
+      if(jobCompare !== 0) return jobCompare;
+      return new Date(b[dateField]||0) - new Date(a[dateField]||0);
+    };
+    pending = [...pending].sort(byJobThenDate('Created'));
+    complete = [...complete].sort(byJobThenDate('Status Updated At'));
   }
 
   document.getElementById('pendingList').innerHTML = pending.length
