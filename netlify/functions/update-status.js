@@ -88,6 +88,7 @@ async function tryCreatePOInJobTread(record) {
               name: lineItemName,
               quantity: 1,
               unitCost: amount,
+              description: f.Notes || null,
             },
           ],
         },
