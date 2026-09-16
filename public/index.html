@@ -199,6 +199,10 @@
     <button onclick="enablePush()">Enable</button>
   </div>
 
+  <div class="field" id="searchBar" style="display:none;margin-bottom:14px">
+    <input id="searchInput" placeholder="Search by job, requestor, or vendor…" oninput="renderLists()" />
+  </div>
+
   <div class="radio-row" id="filterBar" style="display:none;margin-bottom:14px">
     <label><input type="radio" name="reqFilter" value="all" checked onchange="setFilter('all')" /><span>All requests</span></label>
     <label><input type="radio" name="reqFilter" value="mine" onchange="setFilter('mine')" /><span>My requests</span></label>
@@ -320,6 +324,7 @@ function switchTab(view){
   document.querySelector('nav.tabs button[data-view="'+view+'"]').classList.add('active');
   document.getElementById('filterBar').style.display = (view==='new') ? 'none' : 'flex';
   document.getElementById('sortBar').style.display = (view==='new') ? 'none' : 'flex';
+  document.getElementById('searchBar').style.display = (view==='new') ? 'none' : 'block';
   if(view!=='new') refreshRequests();
 }
 
@@ -708,9 +713,19 @@ async function refreshRequests(){
 }
 
 function renderLists(){
-  const scoped = requestFilter==='mine'
+  let scoped = requestFilter==='mine'
     ? allRequests.filter(r => (r['Requested By']||'').toLowerCase().trim() === myName().toLowerCase().trim())
     : allRequests;
+
+  const searchBox = document.getElementById('searchInput');
+  const q = searchBox ? searchBox.value.trim().toLowerCase() : '';
+  if(q){
+    scoped = scoped.filter(r =>
+      (r['Job Name']||'').toLowerCase().includes(q) ||
+      (r['Requested By']||'').toLowerCase().includes(q) ||
+      (r.Vendor||'').toLowerCase().includes(q)
+    );
+  }
 
   let pending = scoped.filter(r=>r.Status==='Pending Review' || r.Status==='Needs Info');
   const approved = scoped.filter(r=>r.Status==='Approved');
